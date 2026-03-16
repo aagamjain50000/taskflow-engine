@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+
+  web:
+    build: .
+    command: gunicorn taskflow_engine.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DEBUG=1
+
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: task_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    command: celery -A taskflow_engine worker -l info
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+
+  celery-beat:
+    build: .
+    command: celery -A taskflow_engine beat -l info
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+
+  frontend:
+    build: ./frontend/taskflow-engine
+    ports:
+      - "3000:3000"
+    depends_on:
+      - web
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api/
+
+volumes:
+  postgres_data:
